@@ -37,7 +37,7 @@ jobs:
             # 1. VERSION LOCKING
             sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.1|g' "$MAKEFILE_PATH"
             
-            # 2. FORCE HASH ALIGNMENT
+            # 2. FORCE HASH ALIGNMENT (Official Unbound 1.26.1 SHA256)
             sed -i 's|PKG_HASH:=.*|PKG_HASH:=467140e4544d65017e82b7dbfe127003f0b2f561ee6dfbfda121a97184ef4608|g' "$MAKEFILE_PATH"
             
             # 3. SAFE HARDWARE CRYPTO INJECTION (Optimized specifically for MT7986 Filogic 830 Core)
@@ -121,9 +121,14 @@ jobs:
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
           
+          echo "🧹 Wiping conflicting package patches to prevent download/patch validation failures..."
+          rm -rf feeds/packages/net/unbound/patches/*
+          
           echo "🧹 Performing clean build sweep on Unbound..."
           make package/feeds/packages/unbound/clean
-          make package/feeds/packages/unbound/download
+          
+          echo "📥 Forcing Unbound download phase..."
+          make package/feeds/packages/unbound/download V=s
           
           echo "🏗 Compiling custom Unbound suite with true native hardware crypto flags..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
