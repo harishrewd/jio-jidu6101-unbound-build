@@ -1,5 +1,5 @@
-# Version 1.26.1-Production-TrueARMv8Offload-RedisEnabled-r600 (Certified Hardened O2 Build)
-name: Build True ARMv8 Optimized Unbound 1.26.1 APK for Jio Jidu 6701
+# Version 1.26.2-Production-TrueARMv8Offload-RedisEnabled-r600 (Certified Hardened O2 Build)
+name: Build True ARMv8 Optimized Unbound 1.26.2 APK for Jio Jidu 6701
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
         run: |
           cd openwrt
           ./scripts/feeds update -a
-          ./scripts/feeds install libsodium hiredis
+          ./scripts/feeds install libsodium hiredis libevent
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
       - name: Hard-Coded Injection of True ARMv8 Hardware Assembly Flags into Unbound
@@ -34,31 +34,34 @@ jobs:
           if [ -f "$MAKEFILE_PATH" ]; then
             echo "⚙️ Tweaking specific package configuration parameter block..."
             
-            # 1. VERSION LOCKING
-            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.1|g' "$MAKEFILE_PATH"
+            # 1. VERSION LOCKING (Updated to 1.26.2)
+            sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=1.26.2|g' "$MAKEFILE_PATH"
             
-            # 2. FORCE HASH ALIGNMENT (Official Unbound 1.26.1 SHA256)
-            sed -i 's|PKG_HASH:=.*|PKG_HASH:=467140e4544d65017e82b7dbfe127003f0b2f561ee6dfbfda121a97184ef4608|g' "$MAKEFILE_PATH"
+            # 2. FORCE HASH ALIGNMENT (Official Unbound 1.26.2 SHA256 Checksum)
+            sed -i 's|PKG_HASH:=.*|PKG_HASH:=d8ee7aa6bbb3ff1be7d9e57637d0d0ec2f18273a8efff1a0afe2c665858b96f7|g' "$MAKEFILE_PATH"
+
+            # 3. FIXED DOWNLOAD PATH MIRROR BYPASS (Full NLnet Labs storage sub-directory)
+            sed -i 's|PKG_SOURCE_URL:=.*|PKG_SOURCE_URL:=https://nlnetlabs.nl/downloads/unbound/|g' "$MAKEFILE_PATH"
             
-            # 3. SAFE HARDWARE CRYPTO INJECTION (Optimized specifically for MT7986 Filogic 830 Core)
+            # 4. SAFE HARDWARE CRYPTO INJECTION (Optimized specifically for MT7986 Filogic 830 Core)
             sed -i 's|--enable-tfo-server|--enable-tfo-server \\\n\t--with-cflags="-O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53" \\\n\t--enable-cachedb \\\n\t--with-libhiredis=$(STAGING_DIR)/usr|g' "$MAKEFILE_PATH"
             
-            # 4. FIXED MODULE SEQUENCE
+            # 5. FIXED MODULE SEQUENCE
             sed -i 's|subnetcache ipset respip validator iterator|subnetcache ipset respip validator cachedb iterator|g' "$MAKEFILE_PATH"
             
-            # 5. CACHE CONTROL RELEASE BUMP
+            # 6. CACHE CONTROL RELEASE BUMP
             sed -i 's|PKG_RELEASE:=.*|PKG_RELEASE:=600|g' "$MAKEFILE_PATH"
             
-            # 6. FIXED DEPENDENCY INJECTION
+            # 7. FIXED DEPENDENCY INJECTION
             sed -i 's|\$(call Package/unbound/Default)|\$(call Package/unbound/Default)\n  DEPENDS+= +libhiredis|g' "$MAKEFILE_PATH"
             
-            # 7. STRIP ALLSYMBOLS
+            # 8. STRIP ALLSYMBOLS
             sed -i 's|--enable-allsymbols||g' "$MAKEFILE_PATH"
             
-            # 8. MASTER RULE OVERRIDE: Destroys size optimizations (-Os) for true execution speed on Quad-Core MT7986
+            # 9. MASTER RULE OVERRIDE: Destroys size optimizations (-Os) for true execution speed on Quad-Core MT7986
             sed -i '/include \$(INCLUDE_DIR)\/package\.mk/i TARGET_CFLAGS:=\$(filter-out -Os, \$(TARGET_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53\nEXTRA_CFLAGS:=\$(filter-out -Os, \$(EXTRA_CFLAGS)) -O2 -pipe -march=armv8-a+crc+crypto -mtune=cortex-a53' "$MAKEFILE_PATH"
             
-            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|CONFIGURE_ARGS|cachedb|DEPENDS|TARGET_CFLAGS|EXTRA_CFLAGS" "$MAKEFILE_PATH"
+            grep -E "PKG_VERSION|PKG_RELEASE|PKG_HASH|PKG_SOURCE_URL|CONFIGURE_ARGS|cachedb|DEPENDS|TARGET_CFLAGS|EXTRA_CFLAGS" "$MAKEFILE_PATH"
           else
             echo "❌ Error: Unbound Makefile not found at $MAKEFILE_PATH!" && exit 1
           fi
@@ -78,6 +81,7 @@ jobs:
           
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
+          echo "CONFIG_PACKAGE_libevent2=y" >> .config
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           echo "CONFIG_PACKAGE_unbound-control=y" >> .config
@@ -120,6 +124,9 @@ jobs:
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+
+          echo "📦 Pre-compiling Libevent toolchain requirements..."
+          make package/feeds/base/libevent2/compile V=s -j$(nproc)
           
           echo "🧹 Wiping conflicting package patches to prevent download/patch validation failures..."
           rm -rf feeds/packages/net/unbound/patches/*
@@ -128,7 +135,7 @@ jobs:
           make package/feeds/packages/unbound/clean
           
           echo "📥 Forcing Unbound download phase..."
-          make package/feeds/packages/unbound/download V=s
+          make package/feeds/packages/unbound/download V=s FORCE_DOWNLOAD=1
           
           echo "🏗 Compiling custom Unbound suite with true native hardware crypto flags..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
