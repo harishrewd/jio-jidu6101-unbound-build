@@ -24,7 +24,7 @@ jobs:
         run: |
           cd openwrt
           ./scripts/feeds update -a
-          ./scripts/feeds install libsodium hiredis
+          ./scripts/feeds install libsodium hiredis libevent
           ./scripts/feeds install unbound-daemon libunbound unbound-control unbound-checkconf unbound-anchor unbound-host
 
       - name: Hard-Coded Injection of True ARMv8 Hardware Assembly Flags into Unbound
@@ -78,6 +78,7 @@ jobs:
           
           echo "CONFIG_PACKAGE_libsodium=y" >> .config
           echo "CONFIG_PACKAGE_libhiredis=y" >> .config
+          echo "CONFIG_PACKAGE_libevent2=y" >> .config
           echo "CONFIG_PACKAGE_libunbound=y" >> .config
           echo "CONFIG_PACKAGE_unbound-daemon=y" >> .config
           echo "CONFIG_PACKAGE_unbound-control=y" >> .config
@@ -120,6 +121,9 @@ jobs:
           
           echo "📦 Pre-compiling Hiredis toolchain requirements..."
           make package/feeds/packages/hiredis/compile V=s -j$(nproc)
+
+          echo "📦 Pre-compiling Libevent toolchain requirements..."
+          make package/feeds/base/libevent2/compile V=s -j$(nproc)
           
           echo "🧹 Wiping conflicting package patches to prevent download/patch validation failures..."
           rm -rf feeds/packages/net/unbound/patches/*
@@ -128,7 +132,8 @@ jobs:
           make package/feeds/packages/unbound/clean
           
           echo "📥 Forcing Unbound download phase..."
-          make package/feeds/packages/unbound/download V=s
+          # Force synchronization of the top-level index metadata before requesting source fetch
+          make package/feeds/packages/unbound/download V=s FORCE_DOWNLOAD=1
           
           echo "🏗 Compiling custom Unbound suite with true native hardware crypto flags..."
           make package/feeds/packages/unbound/compile V=s -j$(nproc) IPKG_INSTANT_CHECK=0
